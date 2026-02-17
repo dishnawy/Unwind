@@ -165,6 +165,16 @@ final class AudioManager: NSObject, ObservableObject {
         audioPlayer?.play()
         isPlaying = true
     }
+
+    /// Deletes the recording file from disk. Call before clearing the filename from your model.
+    /// - Parameter filename: The filename returned from `stopRecording()` (e.g. `"UUID.m4a"`).
+    func deleteRecording(filename: String) {
+        if currentPlaybackFilename == filename {
+            stopPlayback()
+        }
+        let url = self.url(forFilename: filename)
+        try? FileManager.default.removeItem(at: url)
+    }
 }
 
 // MARK: - AVAudioPlayerDelegate
