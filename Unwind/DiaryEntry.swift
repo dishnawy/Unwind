@@ -89,4 +89,16 @@ extension DiaryEntry {
         get { contentFields.result }
         set { var f = contentFields; f.result = newValue; contentFields = f }
     }
+
+    /// All audio filenames stored in this entry’s content fields (for cleanup when deleting).
+    var audioFilenames: [String] {
+        let fields: [ContentField?] = [
+            situation, physicalAwareness, thoughts, feelings, actionTaken,
+            wants, facts, underlyingNeed, result,
+        ]
+        return fields.compactMap { f in
+            guard let f = f, f.isAudio, !f.content.isEmpty else { return nil }
+            return f.content
+        }
+    }
 }
