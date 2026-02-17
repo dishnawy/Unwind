@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import Combine
 import Foundation
 
 /// Manages microphone permission, recording, and playback of audio for diary entries.
@@ -42,26 +43,47 @@ final class AudioManager: NSObject, ObservableObject {
     /// Requests microphone access. Call before starting a recording.
     /// - Parameter completion: Called on main queue with true if authorized (or already granted).
     func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
-        let session = AVAudioSession.sharedInstance()
-        switch session.recordPermission {
-        case .granted:
-            DispatchQueue.main.async { completion(true) }
-        case .denied:
-            DispatchQueue.main.async { completion(false) }
-        case .undetermined:
-            session.requestRecordPermission { [weak self] allowed in
-                DispatchQueue.main.async {
-                    completion(allowed)
+        if #available(iOS 17.0, *) {
+            switch AVAudioApplication.shared.recordPermission {
+            case .granted:
+                DispatchQueue.main.async { completion(true) }
+            case .denied:
+                DispatchQueue.main.async { completion(false) }
+            case .undetermined:
+                AVAudioApplication.requestRecordPermission { allowed in
+                    DispatchQueue.main.async { completion(allowed) }
                 }
+            @unknown default:
+                DispatchQueue.main.async { completion(false) }
             }
-        @unknown default:
-            DispatchQueue.main.async { completion(false) }
+        } else {
+            let session = AVAudioSession.sharedInstance()
+            switch session.recordPermission {
+            case .granted:
+                DispatchQueue.main.async { completion(true) }
+            case .denied:
+                DispatchQueue.main.async { completion(false) }
+            case .undetermined:
+                session.requestRecordPermission { allowed in
+                    DispatchQueue.main.async { completion(allowed) }
+                }
+            @unknown default:
+                DispatchQueue.main.async { completion(false) }
+            }
         }
     }
 
     /// Current microphone permission status.
     var microphonePermissionStatus: AVAudioSession.RecordPermission {
-        AVAudioSession.sharedInstance().recordPermission
+        if #available(iOS 17.0, *) {
+            switch AVAudioApplication.shared.recordPermission {
+            case .granted: return .granted
+            case .denied: return .denied
+            default: return .undetermined
+            }
+        } else {
+            return AVAudioSession.sharedInstance().recordPermission
+        }
     }
 
     // MARK: - Recording
@@ -72,7 +94,7 @@ final class AudioManager: NSObject, ObservableObject {
     func startRecording() -> Bool {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try session.setActive(true)
         } catch {
             return false
