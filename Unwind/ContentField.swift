@@ -8,7 +8,7 @@
 import Foundation
 
 /// A single content field for diary entries. When `isAudio` is true, `content` holds the local filename.
-struct ContentField: Codable, Equatable {
+struct ContentField: Codable, Equatable, Sendable {
     var isAudio: Bool
     var content: String
 
@@ -19,7 +19,7 @@ struct ContentField: Codable, Equatable {
 }
 
 /// Container for all diary content fields, used for SwiftData persistence via encoding to `Data`.
-struct DiaryContentFields: Codable, Equatable {
+struct DiaryContentFields: Codable, Equatable, Sendable {
     var situation: ContentField?
     var physicalAwareness: ContentField?
     var thoughts: ContentField?

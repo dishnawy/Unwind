@@ -22,14 +22,17 @@ struct CircleInputSectionView: View {
     @State private var inputMode: InputMode = .write
     @FocusState private var isTextFocused: Bool
 
-    private var textContent: String {
-        get {
-            guard let f = field, !f.isAudio else { return "" }
-            return f.content
-        }
-        set {
-            field = ContentField(isAudio: false, content: newValue)
-        }
+    private var textBinding: Binding<String> {
+        let bound = $field
+        return Binding(
+            get: {
+                guard let f = bound.wrappedValue, !f.isAudio else { return "" }
+                return f.content
+            },
+            set: { newValue in
+                bound.wrappedValue = ContentField(isAudio: false, content: newValue)
+            }
+        )
     }
 
     private var hasRecording: Bool {
@@ -98,7 +101,7 @@ struct CircleInputSectionView: View {
     }
 
     private var writeModeContent: some View {
-        TextField(title, text: Binding(get: { textContent }, set: { textContent = $0 }), axis: .vertical)
+        TextField(title, text: textBinding, axis: .vertical)
             .textFieldStyle(.plain)
             .lineLimit(3 ... 8)
             .padding(10)
