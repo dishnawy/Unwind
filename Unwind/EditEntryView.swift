@@ -1,5 +1,5 @@
 //
-//  NewEntryView.swift
+//  EditEntryView.swift
 //  Unwind
 //
 //  Created by Dish Eldishnawy on 18.2.2026.
@@ -8,34 +8,18 @@
 import SwiftData
 import SwiftUI
 
-enum NeedMetChoice: String, CaseIterable {
-    case yes = "Yes"
-    case no = "No"
-    case unsure = "Unsure"
-
-    var toBool: Bool? {
-        switch self {
-        case .yes: true
-        case .no: false
-        case .unsure: nil
-        }
-    }
-
-    static func from(_ value: Bool?) -> NeedMetChoice {
-        switch value {
-        case true: .yes
-        case false: .no
-        case nil: .unsure
-        }
-    }
+/// Wrapper so we can use .sheet(item:) with a DiaryEntry.
+struct EditEntryItem: Identifiable {
+    let entry: DiaryEntry
+    var id: UUID { entry.id }
 }
 
-struct NewEntryView: View {
-    @Environment(\.modelContext) private var modelContext
+struct EditEntryView: View {
+    @Bindable var entry: DiaryEntry
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var audioManager: AudioManager
 
-    @State private var title = ""
+    @State private var title: String = ""
     @State private var situationField: ContentField?
     @State private var physicalAwarenessField: ContentField?
     @State private var thoughtsField: ContentField?
@@ -112,15 +96,18 @@ struct NewEntryView: View {
                     Text("Was your need met?")
                 }
             }
-            .navigationTitle("New Entry")
+            .navigationTitle("Edit Entry")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         saveEntry()
                     }
-                    .accessibilityLabel("Save entry")
+                    .accessibilityLabel("Save changes")
                 }
+            }
+            .onAppear {
+                loadEntry()
             }
         }
     }
@@ -138,32 +125,42 @@ struct NewEntryView: View {
         .pickerStyle(.menu)
     }
 
-    private func saveEntry() {
-        var contentFields = DiaryContentFields()
-        contentFields.situation = situationField
-        contentFields.physicalAwareness = physicalAwarenessField
-        contentFields.thoughts = thoughtsField
-        contentFields.feelings = feelingsField
-        contentFields.actionTaken = actionTakenField
-        contentFields.wants = wantsField
-        contentFields.facts = factsField
-        contentFields.underlyingNeed = underlyingNeedField
-        contentFields.result = resultField
+    private func loadEntry() {
+        title = entry.title.isEmpty ? "" : entry.title
+        situationField = entry.situation
+        physicalAwarenessField = entry.physicalAwareness
+        thoughtsField = entry.thoughts
+        feelingsField = entry.feelings
+        actionTakenField = entry.actionTaken
+        selectedSchemaMode = SchemaMode(rawValue: entry.schemaMode) ?? .healthyAdult
+        wantsField = entry.wants
+        factsField = entry.facts
+        underlyingNeedField = entry.underlyingNeed
+        resultField = entry.result
+        needMetChoice = NeedMetChoice.from(entry.wasNeedMet)
+    }
 
-        let entry = DiaryEntry(
-            date: Date(),
-            title: title.isEmpty ? "Untitled" : title,
-            schemaMode: selectedSchemaMode.rawValue,
-            wasNeedMet: needMetChoice.toBool,
-            contentFields: contentFields
-        )
-        modelContext.insert(entry)
+    private func saveEntry() {
+        let oldAudioFilenames = Set(entry.audioFilenames)
+
+        entry.title = title.isEmpty ? "Untitled" : title
+        entry.schemaMode = selectedSchemaMode.rawValue
+        entry.wasNeedMet = needMetChoice.toBool
+        entry.situation = situationField
+        entry.physicalAwareness = physicalAwarenessField
+        entry.thoughts = thoughtsField
+        entry.feelings = feelingsField
+        entry.actionTaken = actionTakenField
+        entry.wants = wantsField
+        entry.facts = factsField
+        entry.underlyingNeed = underlyingNeedField
+        entry.result = resultField
+
+        let newAudioFilenames = Set(entry.audioFilenames)
+        for filename in oldAudioFilenames where !newAudioFilenames.contains(filename) {
+            audioManager.deleteRecording(filename: filename)
+        }
+
         dismiss()
     }
-}
-
-#Preview {
-    NewEntryView()
-        .modelContainer(for: DiaryEntry.self, inMemory: true)
-        .environmentObject(AudioManager())
 }

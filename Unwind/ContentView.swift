@@ -13,21 +13,35 @@ struct ContentView: View {
     @Query(sort: \DiaryEntry.date, order: .reverse) private var entries: [DiaryEntry]
     @StateObject private var audioManager = AudioManager()
     @State private var showNewEntry = false
+    @State private var editEntryItem: EditEntryItem?
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
                 List {
                     ForEach(entries) { entry in
-                        DiaryRowView(entry: entry)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    deleteEntry(entry)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                        NavigationLink(value: entry) {
+                            DiaryRowView(entry: entry)
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                editEntryItem = EditEntryItem(entry: entry)
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
                             }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteEntry(entry)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
+                }
+                .navigationDestination(for: DiaryEntry.self) { entry in
+                    EntryDetailView(entry: entry)
+                        .environmentObject(audioManager)
                 }
                 .overlay {
                     if entries.isEmpty {
@@ -53,6 +67,10 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showNewEntry) {
                 NewEntryView()
+                    .environmentObject(audioManager)
+            }
+            .sheet(item: $editEntryItem) { item in
+                EditEntryView(entry: item.entry)
                     .environmentObject(audioManager)
             }
         }

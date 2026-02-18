@@ -116,7 +116,20 @@ struct CircleInputSectionView: View {
 
     private var recordModeContent: some View {
         VStack(spacing: 16) {
-            if hasRecording {
+            if audioManager.isTranscribing {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Converting to text…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Converting speech to text")
+            }
+
+            if hasRecording, !audioManager.isTranscribing {
                 HStack(spacing: 12) {
                     playStopButton
                     deleteButton
@@ -133,7 +146,22 @@ struct CircleInputSectionView: View {
         Button {
             if audioManager.isRecording {
                 if let filename = audioManager.stopRecording() {
-                    field = ContentField(isAudio: true, content: filename)
+                    audioManager.requestSpeechRecognitionPermission { granted in
+                        if granted {
+                            audioManager.transcribeToText(filename: filename) { result in
+                                switch result {
+                                case .success(let transcript):
+                                    let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    field = ContentField(isAudio: false, content: trimmed.isEmpty ? "" : trimmed)
+                                    inputMode = .write
+                                case .failure:
+                                    field = ContentField(isAudio: true, content: filename)
+                                }
+                            }
+                        } else {
+                            field = ContentField(isAudio: true, content: filename)
+                        }
+                    }
                 }
             } else {
                 audioManager.requestMicrophonePermission { granted in

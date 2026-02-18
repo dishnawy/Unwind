@@ -8,6 +8,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import Speech
 
 /// Manages microphone permission, recording, and playback of audio for diary entries.
 /// Recordings are stored in the app's Document Directory. Use the returned filename
@@ -17,6 +18,7 @@ final class AudioManager: NSObject, ObservableObject {
 
     @Published private(set) var isRecording = false
     @Published private(set) var isPlaying = false
+    @Published private(set) var isTranscribing = false
     @Published private(set) var currentPlaybackFilename: String?
 
     // MARK: - Private
@@ -196,6 +198,55 @@ final class AudioManager: NSObject, ObservableObject {
         }
         let url = self.url(forFilename: filename)
         try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: - Speech to text
+
+    /// Requests speech recognition permission. Call before transcribing (e.g. when user first uses Record).
+    func requestSpeechRecognitionPermission(completion: @escaping (Bool) -> Void) {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                completion(status == .authorized)
+            }
+        }
+    }
+
+    /// Transcribes the recording at the given filename to text. On success returns the transcript; the audio file is deleted. On failure returns an error (caller may keep the audio).
+    /// - Parameters:
+    ///   - filename: Filename returned from `stopRecording()` (e.g. `"UUID.m4a"`).
+    ///   - completion: Called on main queue with `.success(String)` or `.failure(Error)`.
+    func transcribeToText(filename: String, completion: @escaping (Result<String, Error>) -> Void) {
+        let fileURL = url(forFilename: filename)
+        guard let recognizer = SFSpeechRecognizer(locale: Locale.current),
+              recognizer.isAvailable else {
+            DispatchQueue.main.async {
+                completion(.failure(NSError(domain: "AudioManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Speech recognition is not available."])))
+            }
+            return
+        }
+
+        isTranscribing = true
+        let request = SFSpeechURLRecognitionRequest(url: fileURL)
+        request.shouldReportPartialResults = false
+
+        recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self = self else { return }
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isTranscribing = false
+                    completion(.failure(error))
+                }
+                return
+            }
+            guard let result = result, result.isFinal else { return }
+
+            let transcript = result.bestTranscription.formattedString
+            DispatchQueue.main.async {
+                self.isTranscribing = false
+                self.deleteRecording(filename: filename)
+                completion(.success(transcript))
+            }
+        }
     }
 }
 
